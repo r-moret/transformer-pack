@@ -2,3 +2,4 @@
 build
 dist
 transformer_pack.egg-info
+transformer_pack/__pycache__
