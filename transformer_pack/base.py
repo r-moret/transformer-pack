@@ -2,10 +2,11 @@ import os
 import numpy as np
 import pandas as pd
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 import tensorflow as tf
 
 from sklearn.base import TransformerMixin, BaseEstimator
+from functools import partial
 
 
 class CategoricalEmbedding(BaseEstimator, TransformerMixin):
@@ -22,6 +23,14 @@ class CategoricalEmbedding(BaseEstimator, TransformerMixin):
         n_features = X.shape[1]
         if isinstance(X, pd.DataFrame):
             X = X.values
+
+        if not np.issubdtype(y.dtype, np.integer) and not np.issubdtype(
+            y.dtype, np.floating
+        ):
+            try:
+                y = y.astype(float)
+            except:
+                raise ValueError("y must be of integer or float type.")
 
         self.embeddings_ = []
         for i_col in range(n_features):
@@ -43,7 +52,26 @@ class CategoricalEmbedding(BaseEstimator, TransformerMixin):
         return self
 
     def transform(self, X, y=None):
-        pass
+        X = X.copy()
+        Xt = pd.DataFrame() if isinstance(X, pd.DataFrame) else []
+
+        n_features = X.shape[1]
+        for i_col in range(n_features):
+            embedder = partial(map, lambda x: self.embeddings_[i_col][x])
+
+            if isinstance(X, pd.DataFrame):
+                feature = X.iloc[:, i_col].astype(str).copy()
+                embedded_feature = embedder(feature)
+                Xt[X.iloc[:, i_col].name] = list(embedded_feature)
+            else:
+                feature = X[:, i_col].astype(str).copy()
+                embedded_feature = embedder(feature)
+                Xt.append(list(embedded_feature))
+
+        if not isinstance(X, pd.DataFrame):
+            Xt = np.array(Xt, dtype='object').T
+
+        return Xt
 
     def _embedding_model(self, feature):
         vocab = np.unique(feature)
@@ -68,7 +96,7 @@ class CategoricalEmbedding(BaseEstimator, TransformerMixin):
                 "'multi-class' or 'regression', depending on your problem."
             )
 
-        input_layer = tf.keras.layers.Input(shape=(1,), dtype='string')
+        input_layer = tf.keras.layers.Input(shape=(1,), dtype="string")
         embedding_nn = tf.keras.layers.StringLookup(vocabulary=vocab)(input_layer)
         embedding_nn = tf.keras.layers.Embedding(
             output_dim=feature_embedding_dim, input_dim=n_uniques + 1, input_length=1
