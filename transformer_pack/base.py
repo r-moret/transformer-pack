@@ -62,14 +62,18 @@ class CategoricalEmbedding(BaseEstimator, TransformerMixin):
             if isinstance(X, pd.DataFrame):
                 feature = X.iloc[:, i_col].astype(str).copy()
                 embedded_feature = embedder(feature)
-                Xt[X.iloc[:, i_col].name] = list(embedded_feature)
+                embedded_feature = pd.DataFrame(map(pd.Series, list(embedded_feature)))
+                embedded_feature.columns = [
+                    f"{feature.name}_{i}" for i in range(embedded_feature.shape[1])
+                ]
+                Xt = pd.concat([Xt, embedded_feature], axis=1)
             else:
                 feature = X[:, i_col].astype(str).copy()
-                embedded_feature = embedder(feature)
+                embedded_feature = embedder(feature)              
                 Xt.append(list(embedded_feature))
 
         if not isinstance(X, pd.DataFrame):
-            Xt = np.array(Xt, dtype='object').T
+            Xt = np.concatenate(tuple(Xt), axis=1)
 
         return Xt
 
